@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <node pkg="intrusion_judge" type="intrusion_judge_node" name="intrusion_judge_node" output="screen">
+    <!-- <rosparam file="$(find relative_navigator)/config/param/reference_trajectory_handler.yaml" command="load"/> -->
+  </node>
+
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find intrusion_judge)/config/rviz/intrusion_judge_test.rviz" output="screen"/>
+</launch>
