@@ -6,5 +6,8 @@
     <!-- <rosparam file="$(find relative_navigator)/config/param/reference_trajectory_handler.yaml" command="load"/> -->
   </node>
 
+  <node pkg="intrusion_judge" type="dummy_person_generator_node" name="dummy_person_generator_node" output="screen">
+  </node>
+
     <node pkg="rviz" name="rviz" type="rviz" args="-d $(find intrusion_judge)/config/rviz/intrusion_judge_test.rviz" output="screen"/>
 </launch>

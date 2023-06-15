@@ -9,14 +9,14 @@ namespace intrusion_judge
         private_nh.param<float>("off_limits_radius_turn", param_.off_limits_radius_turn, 0.6);
         private_nh.param<float>("off_limits_angle_trans", param_.off_limits_angle_trans, M_PI/2);
         private_nh.param<float>("border_angle_reso", param_.border_angle_reso, 0.1);
+        private_nh.param<float>("moving_th_trans", param_.moving_th_trans, 0.05);
+        private_nh.param<float>("moving_th_turn", param_.moving_th_turn, 0.05);
 
-        empty_border_.header.frame_id = "base_link";
-        empty_border_.header.stamp = ros::Time::now();
-
-
-        person_poses_sub_ = nh.subscribe<geometry_msgs::PoseArray>("person_poses", 1, &IntrusionJudge::pose_array_callback, this);
+        person_poses_sub_ = nh.subscribe<geometry_msgs::PoseArray>("/person_poses", 1, &IntrusionJudge::pose_array_callback, this);
+        cmd_vel_sub_ = nh.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, &IntrusionJudge::cmd_vel_callback, this);
         off_limits_border_pub_ = nh.advertise<nav_msgs::Path>("/intrusion_judge/off_limits_border", 1);
         off_limits_border_intruded_pub_ = nh.advertise<nav_msgs::Path>("/intrusion_judge/off_limits_border_intruded", 1);
+        intrusion_flag_pub_ = nh.advertise<std_msgs::Bool>("/intrusion_judge/intrusion_flag", 1);
     }
 
     void IntrusionJudge::pose_array_callback(const geometry_msgs::PoseArrayConstPtr &msg)
@@ -24,6 +24,11 @@ namespace intrusion_judge
         //後々mapにlookupするtfを書く必要あり
         person_poses_ = *msg;
 
+    }
+
+    void IntrusionJudge::cmd_vel_callback(const geometry_msgs::TwistConstPtr &msg)
+    {
+        cmd_vel_ = *msg;
     }
 
     double IntrusionJudge::adjust_yaw(double yaw)
@@ -85,17 +90,27 @@ namespace intrusion_judge
     void IntrusionJudge::visualize_off_limits_border()
     {
         nav_msgs::Path off_limits_border;
-        if(turning_flag_) off_limits_border = calc_off_limits_border_turn();
-        else off_limits_border = calc_off_limits_border_trans();
+        switch(motion_state_)
+        {
+            case MotionState::Stop:
+                off_limits_border = generate_empty_border();
+                break;
+            case MotionState::Trans:
+                off_limits_border = calc_off_limits_border_trans();
+                break;
+            case MotionState::Turn:
+                off_limits_border = calc_off_limits_border_turn();
+                break;
+        }
 
         if(intrusion_flag_)
         {
             off_limits_border_intruded_pub_.publish(off_limits_border);
-            off_limits_border_pub_.publish(empty_border_);
+            off_limits_border_pub_.publish(generate_empty_border());
         }
         else{
             off_limits_border_pub_.publish(off_limits_border);
-            off_limits_border_intruded_pub_.publish(empty_border_);
+            off_limits_border_intruded_pub_.publish(generate_empty_border());
         }
     }
 
@@ -121,22 +136,64 @@ namespace intrusion_judge
     bool IntrusionJudge::intrusion_judge_pose(geometry_msgs::Pose& pose)
     {
         double dist_origin_to_pose = calc_dist_origin_to_pose(pose);
-        if(turning_flag_)
+        switch(motion_state_)
         {
-            if(dist_origin_to_pose < param_.off_limits_radius_turn) return true;
-            else return false;
-        }
-        else
-        {
-            bool angle_intrusion_flag = angle_intrusion_judge(
-                    adjust_yaw(trans_direction_ - param_.off_limits_angle_trans/2),
-                    adjust_yaw(trans_direction_ + param_.off_limits_angle_trans/2),
-                    atan2(pose.position.y, pose.position.x));
-            if(dist_origin_to_pose < param_.off_limits_radius_trans && angle_intrusion_flag) return true;
-            else return false;
+            case MotionState::Stop:
+                return false;
+                break;
 
+            case MotionState::Trans:
+                {
+                    bool angle_intrusion_flag = angle_intrusion_judge(
+                            adjust_yaw(trans_direction_ - param_.off_limits_angle_trans/2),
+                            adjust_yaw(trans_direction_ + param_.off_limits_angle_trans/2),
+                            atan2(pose.position.y, pose.position.x));
+                    if(dist_origin_to_pose < param_.off_limits_radius_trans && angle_intrusion_flag) return true;
+                    else return false;
+                } // blockないとcompile error
+                break;
+
+            case MotionState::Turn:
+                if(dist_origin_to_pose < param_.off_limits_radius_turn) return true;
+                else return false;
+                break;
+            default:
+                return false;
+                break;
         }
 
+    }
+
+    nav_msgs::Path IntrusionJudge::generate_empty_border()
+    {
+        nav_msgs::Path empty_border;
+        empty_border.header.frame_id = "base_link";
+        empty_border.header.stamp = ros::Time::now();
+
+        return empty_border;
+    }
+
+    MotionState IntrusionJudge::judge_motion_state(geometry_msgs::Twist cmd_vel)
+    {
+        if(sqrt(std::pow(cmd_vel.linear.x, 2) + std::pow(cmd_vel.linear.y, 2)) > param_.moving_th_trans)
+            return MotionState::Trans;
+
+        if(cmd_vel.angular.z > param_.moving_th_turn)
+            return MotionState::Turn;
+
+        return MotionState::Stop;
+    }
+
+    float IntrusionJudge::calc_trans_direction(geometry_msgs::Twist cmd_vel)
+    {
+        return atan2(cmd_vel.linear.y, cmd_vel.linear.x);
+    }
+
+    void IntrusionJudge::publish_intrusion_flag()
+    {
+        std_msgs::Bool intrusion_flag_msg;
+        intrusion_flag_msg.data = intrusion_flag_;
+        intrusion_flag_pub_.publish(intrusion_flag_msg);
     }
 
     void IntrusionJudge::process()
@@ -145,8 +202,16 @@ namespace intrusion_judge
 
         while (ros::ok())
         {
-            intrusion_flag_ = intrusion_judge_pose_array(person_poses_);
-            visualize_off_limits_border();
+            if(person_poses_.has_value() && cmd_vel_.has_value())
+            {
+                motion_state_ = judge_motion_state(cmd_vel_.value());
+                if(motion_state_ == MotionState::Trans) trans_direction_ = calc_trans_direction(cmd_vel_.value()); 
+                else trans_direction_ = 0;
+
+                intrusion_flag_ = intrusion_judge_pose_array(person_poses_.value());
+                visualize_off_limits_border();
+                publish_intrusion_flag();
+            }
 
             ros::spinOnce();
             loop_rate.sleep();
