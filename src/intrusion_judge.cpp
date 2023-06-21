@@ -1,4 +1,5 @@
 #include <intrusion_judge/intrusion_judge.hpp>
+#include <string>
 
 namespace intrusion_judge
 {
@@ -11,9 +12,11 @@ namespace intrusion_judge
         private_nh.param<float>("border_angle_reso", param_.border_angle_reso, 0.1);
         private_nh.param<float>("moving_th_trans", param_.moving_th_trans, 0.05);
         private_nh.param<float>("moving_th_turn", param_.moving_th_turn, 0.05);
+        private_nh.param<std::string>("person_poses_topic_name", param_.person_poses_topic_name, "/person_poses");
+        private_nh.param<std::string>("cmd_vel_topic_name", param_.cmd_vel_topic_name, "/cmd_vel");
 
-        person_poses_sub_ = nh.subscribe<geometry_msgs::PoseArray>("/person_poses", 1, &IntrusionJudge::pose_array_callback, this);
-        cmd_vel_sub_ = nh.subscribe<geometry_msgs::Twist>("/cmd_vel", 1, &IntrusionJudge::cmd_vel_callback, this);
+        person_poses_sub_ = nh.subscribe<geometry_msgs::PoseArray>(param_.person_poses_topic_name, 1, &IntrusionJudge::pose_array_callback, this);
+        cmd_vel_sub_ = nh.subscribe<geometry_msgs::Twist>(param_.cmd_vel_topic_name, 1, &IntrusionJudge::cmd_vel_callback, this);
         off_limits_border_pub_ = nh.advertise<nav_msgs::Path>("/intrusion_judge/off_limits_border", 1);
         off_limits_border_intruded_pub_ = nh.advertise<nav_msgs::Path>("/intrusion_judge/off_limits_border_intruded", 1);
         intrusion_flag_pub_ = nh.advertise<std_msgs::Bool>("/intrusion_judge/intrusion_flag", 1);
@@ -63,8 +66,11 @@ namespace intrusion_judge
         off_limits_border.poses.push_back(origin);
 
         std::vector<geometry_msgs::PoseStamped> arc;
-        arc = calc_arc(adjust_yaw(trans_direction_ - param_.off_limits_angle_trans/2),
-                    adjust_yaw(trans_direction_ + param_.off_limits_angle_trans/2),
+        // arc = calc_arc(adjust_yaw(trans_direction_ - param_.off_limits_angle_trans/2),
+        //             adjust_yaw(trans_direction_ + param_.off_limits_angle_trans/2),
+        //             param_.off_limits_radius_trans);
+        arc = calc_arc(trans_direction_ - param_.off_limits_angle_trans/2,
+                    trans_direction_ + param_.off_limits_angle_trans/2,
                     param_.off_limits_radius_trans);
         off_limits_border.poses.insert(off_limits_border.poses.end(), arc.begin(), arc.end());
 
@@ -178,7 +184,7 @@ namespace intrusion_judge
         if(sqrt(std::pow(cmd_vel.linear.x, 2) + std::pow(cmd_vel.linear.y, 2)) > param_.moving_th_trans)
             return MotionState::Trans;
 
-        if(cmd_vel.angular.z > param_.moving_th_turn)
+        if(abs(cmd_vel.angular.z) > param_.moving_th_turn)
             return MotionState::Turn;
 
         return MotionState::Stop;
@@ -186,6 +192,10 @@ namespace intrusion_judge
 
     float IntrusionJudge::calc_trans_direction(geometry_msgs::Twist cmd_vel)
     {
+        // std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
+        // std::cout << "cmd_vel.linear.y: " << cmd_vel.linear.y << std::endl;
+        // std::cout << "atan2: " << atan2(cmd_vel.linear.y, cmd_vel.linear.x) << std::endl;
+        // std::cout << std::endl;
         return atan2(cmd_vel.linear.y, cmd_vel.linear.x);
     }
 
@@ -205,6 +215,7 @@ namespace intrusion_judge
             if(person_poses_.has_value() && cmd_vel_.has_value())
             {
                 motion_state_ = judge_motion_state(cmd_vel_.value());
+                // printf("motion_state_: %d\n", motion_state_);
                 if(motion_state_ == MotionState::Trans) trans_direction_ = calc_trans_direction(cmd_vel_.value()); 
                 else trans_direction_ = 0;
 

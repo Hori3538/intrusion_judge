@@ -1,0 +1,4 @@
+hz: 10
+
+person_poses_topic_name: /person_poses
+cmd_vel_topic_name: /brushee/cmd_vel

@@ -21,6 +21,9 @@ namespace intrusion_judge
 
         float moving_th_trans; // threshold for judging whether robot is stop in translation direction
         float moving_th_turn; // threshold for judging whether robot is stop rotating in direction
+
+        std::string person_poses_topic_name;
+        std::string cmd_vel_topic_name;
     };
 
     enum class MotionState
