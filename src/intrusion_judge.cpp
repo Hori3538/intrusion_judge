@@ -66,9 +66,6 @@ namespace intrusion_judge
         off_limits_border.poses.push_back(origin);
 
         std::vector<geometry_msgs::PoseStamped> arc;
-        // arc = calc_arc(adjust_yaw(trans_direction_ - param_.off_limits_angle_trans/2),
-        //             adjust_yaw(trans_direction_ + param_.off_limits_angle_trans/2),
-        //             param_.off_limits_radius_trans);
         arc = calc_arc(trans_direction_ - param_.off_limits_angle_trans/2,
                     trans_direction_ + param_.off_limits_angle_trans/2,
                     param_.off_limits_radius_trans);
@@ -192,10 +189,6 @@ namespace intrusion_judge
 
     float IntrusionJudge::calc_trans_direction(geometry_msgs::Twist cmd_vel)
     {
-        // std::cout << "cmd_vel.linear.x: " << cmd_vel.linear.x << std::endl;
-        // std::cout << "cmd_vel.linear.y: " << cmd_vel.linear.y << std::endl;
-        // std::cout << "atan2: " << atan2(cmd_vel.linear.y, cmd_vel.linear.x) << std::endl;
-        // std::cout << std::endl;
         return atan2(cmd_vel.linear.y, cmd_vel.linear.x);
     }
 
@@ -215,7 +208,6 @@ namespace intrusion_judge
             if(person_poses_.has_value() && cmd_vel_.has_value())
             {
                 motion_state_ = judge_motion_state(cmd_vel_.value());
-                // printf("motion_state_: %d\n", motion_state_);
                 if(motion_state_ == MotionState::Trans) trans_direction_ = calc_trans_direction(cmd_vel_.value()); 
                 else trans_direction_ = 0;
 
