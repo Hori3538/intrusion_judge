@@ -8,6 +8,8 @@ find_package(catkin REQUIRED COMPONENTS
     rosbag
     sensor_msgs
     nav_msgs
+    tf2_ros
+    tf2_geometry_msgs
     )
 
 catkin_package(

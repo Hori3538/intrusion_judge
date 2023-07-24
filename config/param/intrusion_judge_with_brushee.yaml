@@ -1,4 +1,15 @@
 hz: 10
 
-person_poses_topic_name: /person_poses
+off_limits_radius_trans: 1.0
+off_limits_radius_turn: 0.6
+off_limits_angle_trans: 1.57
+
+border_angle_reso: 0.1
+moving_th_trans: 0.05
+moving_th_turn: 0.05
+
+person_poses_topic_name: /current_timestamp_filtered_pose_array
 cmd_vel_topic_name: /brushee/cmd_vel
+
+base_frame: base_link
+world_frame: map

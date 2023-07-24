@@ -1,5 +1,5 @@
+#include "tf2/exceptions.h"
 #include <intrusion_judge/intrusion_judge.hpp>
-#include <string>
 
 namespace intrusion_judge
 {
@@ -14,6 +14,8 @@ namespace intrusion_judge
         private_nh.param<float>("moving_th_turn", param_.moving_th_turn, 0.05);
         private_nh.param<std::string>("person_poses_topic_name", param_.person_poses_topic_name, "/person_poses");
         private_nh.param<std::string>("cmd_vel_topic_name", param_.cmd_vel_topic_name, "/cmd_vel");
+        private_nh.param<std::string>("base_frame", param_.base_frame, "base_link");
+        private_nh.param<std::string>("world_frame", param_.world_frame, "map");
 
         person_poses_sub_ = nh.subscribe<geometry_msgs::PoseArray>(param_.person_poses_topic_name, 1, &IntrusionJudge::pose_array_callback, this);
         cmd_vel_sub_ = nh.subscribe<geometry_msgs::Twist>(param_.cmd_vel_topic_name, 1, &IntrusionJudge::cmd_vel_callback, this);
@@ -26,7 +28,20 @@ namespace intrusion_judge
     {
         //後々mapにlookupするtfを書く必要あり
         person_poses_ = *msg;
-
+        try
+        {
+            geometry_msgs::TransformStamped transform;
+            // target frame: base_frame, source frame: world_frame
+            transform = tf_buffer_.lookupTransform(param_.base_frame, param_.world_frame, ros::Time(0));
+            for(auto& person_pose: person_poses_.value().poses)
+                tf2::doTransform(person_pose, person_pose, transform);
+            person_poses_.value().header.frame_id = param_.base_frame;
+        }
+        catch(tf2::TransformException &ex)
+        {
+            ROS_WARN("%s", ex.what());
+            person_poses_.reset();
+        }
     }
 
     void IntrusionJudge::cmd_vel_callback(const geometry_msgs::TwistConstPtr &msg)
@@ -59,7 +74,7 @@ namespace intrusion_judge
     nav_msgs::Path IntrusionJudge::calc_off_limits_border_trans()
     {
         nav_msgs::Path off_limits_border;
-        off_limits_border.header.frame_id = "base_link";
+        off_limits_border.header.frame_id = param_.base_frame;
         off_limits_border.header.stamp = ros::Time::now();
         
         geometry_msgs::PoseStamped origin;
@@ -79,7 +94,7 @@ namespace intrusion_judge
     nav_msgs::Path IntrusionJudge::calc_off_limits_border_turn()
     {
         nav_msgs::Path off_limits_border;
-        off_limits_border.header.frame_id = "base_link";
+        off_limits_border.header.frame_id = param_.base_frame;
         off_limits_border.header.stamp = ros::Time::now();
         
         std::vector<geometry_msgs::PoseStamped> arc;
@@ -170,7 +185,7 @@ namespace intrusion_judge
     nav_msgs::Path IntrusionJudge::generate_empty_border()
     {
         nav_msgs::Path empty_border;
-        empty_border.header.frame_id = "base_link";
+        empty_border.header.frame_id = param_.base_frame;
         empty_border.header.stamp = ros::Time::now();
 
         return empty_border;
@@ -202,6 +217,7 @@ namespace intrusion_judge
     void IntrusionJudge::process()
     {
         ros::Rate loop_rate(param_.hz);
+        tf2_ros::TransformListener tf_listener(tf_buffer_);
 
         while (ros::ok())
         {

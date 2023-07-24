@@ -6,6 +6,8 @@
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/Bool.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <optional>
 
@@ -24,6 +26,9 @@ namespace intrusion_judge
 
         std::string person_poses_topic_name;
         std::string cmd_vel_topic_name;
+
+        std::string base_frame;
+        std::string world_frame;
     };
 
     enum class MotionState
@@ -72,7 +77,8 @@ namespace intrusion_judge
             ros::Publisher off_limits_border_pub_;
             ros::Publisher off_limits_border_intruded_pub_;
             ros::Publisher intrusion_flag_pub_;
-    };
 
+            tf2_ros::Buffer tf_buffer_;
+    };
 }
 #endif

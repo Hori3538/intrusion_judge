@@ -5,6 +5,4 @@
   <node pkg="intrusion_judge" type="intrusion_judge_node" name="intrusion_judge_node" output="screen">
     <rosparam file="$(find intrusion_judge)/config/param/intrusion_judge_with_brushee.yaml" command="load"/>
   </node>
-
-    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find intrusion_judge)/config/rviz/intrusion_judge_brushee.rviz" output="screen"/>
 </launch>
