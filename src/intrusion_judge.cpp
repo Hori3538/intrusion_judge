@@ -1,4 +1,3 @@
-#include "tf2/exceptions.h"
 #include <intrusion_judge/intrusion_judge.hpp>
 
 namespace intrusion_judge
@@ -26,7 +25,6 @@ namespace intrusion_judge
 
     void IntrusionJudge::pose_array_callback(const geometry_msgs::PoseArrayConstPtr &msg)
     {
-        //後々mapにlookupするtfを書く必要あり
         person_poses_ = *msg;
         try
         {

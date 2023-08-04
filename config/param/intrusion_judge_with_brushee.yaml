@@ -8,7 +8,7 @@ border_angle_reso: 0.1
 moving_th_trans: 0.05
 moving_th_turn: 0.05
 
-person_poses_topic_name: /current_timestamp_filtered_pose_array
+person_poses_topic_name: /person_tracker/current_timestamp_filtered_pose_array
 cmd_vel_topic_name: /brushee/cmd_vel
 
 base_frame: base_link
