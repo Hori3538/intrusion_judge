@@ -23,6 +23,7 @@ namespace intrusion_judge
 
         float moving_th_trans; // threshold for judging whether robot is stop in translation direction
         float moving_th_turn; // threshold for judging whether robot is stop rotating in direction
+        float time_buffer; // 
 
         std::string person_poses_topic_name;
         std::string cmd_vel_topic_name;
@@ -65,6 +66,8 @@ namespace intrusion_judge
 
             bool turning_flag_ = false;
             bool intrusion_flag_ = false;
+            std::optional<ros::Time> latest_intrusion_time_;
+
             float trans_direction_ = 0;
             MotionState motion_state_ = MotionState::Stop;
 

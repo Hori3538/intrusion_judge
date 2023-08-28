@@ -1,3 +1,5 @@
+#include "ros/duration.h"
+#include "ros/time.h"
 #include <intrusion_judge/intrusion_judge.hpp>
 
 namespace intrusion_judge
@@ -11,6 +13,7 @@ namespace intrusion_judge
         private_nh.param<float>("border_angle_reso", param_.border_angle_reso, 0.1);
         private_nh.param<float>("moving_th_trans", param_.moving_th_trans, 0.05);
         private_nh.param<float>("moving_th_turn", param_.moving_th_turn, 0.05);
+        private_nh.param<float>("time_buffer", param_.time_buffer, 1.0);
         private_nh.param<std::string>("person_poses_topic_name", param_.person_poses_topic_name, "/person_poses");
         private_nh.param<std::string>("cmd_vel_topic_name", param_.cmd_vel_topic_name, "/cmd_vel");
         private_nh.param<std::string>("base_frame", param_.base_frame, "base_link");
@@ -226,6 +229,14 @@ namespace intrusion_judge
                 else trans_direction_ = 0;
 
                 intrusion_flag_ = intrusion_judge_pose_array(person_poses_.value());
+                if(intrusion_flag_) latest_intrusion_time_ = ros::Time::now();
+                if(latest_intrusion_time_.has_value())
+                {
+                    ros::Duration duration = ros::Time::now() - latest_intrusion_time_.value();
+                    double safe_time = (ros::Time::now() - latest_intrusion_time_.value()).toSec();
+                    if(safe_time < param_.time_buffer) intrusion_flag_ = true;
+                }
+
                 visualize_off_limits_border();
                 publish_intrusion_flag();
             }
