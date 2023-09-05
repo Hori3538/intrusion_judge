@@ -16,6 +16,8 @@ namespace intrusion_judge
     struct Param
     {
         int hz;
+
+        float off_limits_radius_default;
         float off_limits_radius_trans;
         float off_limits_radius_turn;
         float off_limits_angle_trans;
@@ -51,7 +53,7 @@ namespace intrusion_judge
             double adjust_yaw(double yaw);
             std::vector<geometry_msgs::PoseStamped> calc_arc(float start_angle, float end_angle, float radius);
             nav_msgs::Path calc_off_limits_border_trans();
-            nav_msgs::Path calc_off_limits_border_turn();
+            nav_msgs::Path calc_off_limits_border_circle(float radius);
             void visualize_off_limits_border();
             double calc_dist_origin_to_pose(geometry_msgs::Pose pose);
             bool angle_intrusion_judge(float start_angle, float end_angle, float target_angle);
@@ -70,6 +72,7 @@ namespace intrusion_judge
 
             float trans_direction_ = 0;
             MotionState motion_state_ = MotionState::Stop;
+            MotionState previous_motion_state_ = MotionState::Stop;
 
             std::optional<geometry_msgs::PoseArray> person_poses_;
             std::optional<geometry_msgs::Twist> cmd_vel_;

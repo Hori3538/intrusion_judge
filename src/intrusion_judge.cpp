@@ -1,5 +1,3 @@
-#include "ros/duration.h"
-#include "ros/time.h"
 #include <intrusion_judge/intrusion_judge.hpp>
 
 namespace intrusion_judge
@@ -7,6 +5,7 @@ namespace intrusion_judge
     IntrusionJudge::IntrusionJudge(ros::NodeHandle &nh, ros::NodeHandle &private_nh)
     {
         private_nh.param<int>("hz", param_.hz, 10);
+        private_nh.param<float>("off_limits_radius_default", param_.off_limits_radius_default, 0.5);
         private_nh.param<float>("off_limits_radius_trans", param_.off_limits_radius_trans, 1.0);
         private_nh.param<float>("off_limits_radius_turn", param_.off_limits_radius_turn, 0.6);
         private_nh.param<float>("off_limits_angle_trans", param_.off_limits_angle_trans, M_PI/2);
@@ -60,8 +59,10 @@ namespace intrusion_judge
 
     std::vector<geometry_msgs::PoseStamped> IntrusionJudge::calc_arc(float start_angle, float end_angle, float radius)
     {
+        if(end_angle < start_angle) end_angle += M_PI * 2;
+
         std::vector<geometry_msgs::PoseStamped> arc;
-        for(float angle=start_angle; angle<end_angle; angle+=param_.border_angle_reso)
+        for(float angle=start_angle; angle<=end_angle; angle+=param_.border_angle_reso)
         {
             geometry_msgs::PoseStamped point;
             point.pose.position.x = radius * cos(adjust_yaw(angle));
@@ -78,28 +79,47 @@ namespace intrusion_judge
         off_limits_border.header.frame_id = param_.base_frame;
         off_limits_border.header.stamp = ros::Time::now();
         
-        geometry_msgs::PoseStamped origin;
-        off_limits_border.poses.push_back(origin);
+        geometry_msgs::PoseStamped point_of_contact_1;
+        geometry_msgs::PoseStamped point_of_contact_2;
 
-        std::vector<geometry_msgs::PoseStamped> arc;
-        arc = calc_arc(trans_direction_ - param_.off_limits_angle_trans/2,
+        float point_of_contact_dist = std::min(param_.off_limits_radius_trans,
+                param_.off_limits_radius_default);
+        float point_of_contact_1_angle = adjust_yaw(trans_direction_ - param_.off_limits_angle_trans/2);
+        float point_of_contact_2_angle = adjust_yaw(trans_direction_ + param_.off_limits_angle_trans/2);
+
+
+        point_of_contact_1.pose.position.x = point_of_contact_dist * cos(point_of_contact_1_angle);
+        point_of_contact_1.pose.position.y = point_of_contact_dist * sin(point_of_contact_1_angle);
+        point_of_contact_2.pose.position.x = point_of_contact_dist * cos(point_of_contact_2_angle);
+        point_of_contact_2.pose.position.y = point_of_contact_dist * sin(point_of_contact_2_angle);
+
+        off_limits_border.poses.push_back(point_of_contact_1);
+
+        std::vector<geometry_msgs::PoseStamped> arc_1;
+        arc_1 = calc_arc(trans_direction_ - param_.off_limits_angle_trans/2,
                     trans_direction_ + param_.off_limits_angle_trans/2,
                     param_.off_limits_radius_trans);
-        off_limits_border.poses.insert(off_limits_border.poses.end(), arc.begin(), arc.end());
+        off_limits_border.poses.insert(off_limits_border.poses.end(), arc_1.begin(), arc_1.end());
 
-        off_limits_border.poses.push_back(origin);
+        off_limits_border.poses.push_back(point_of_contact_2);
+
+        std::vector<geometry_msgs::PoseStamped> arc_2;
+        arc_2 = calc_arc(trans_direction_ + param_.off_limits_angle_trans/2,
+                    trans_direction_ - param_.off_limits_angle_trans/2,
+                    param_.off_limits_radius_default);
+        off_limits_border.poses.insert(off_limits_border.poses.end(), arc_2.begin(), arc_2.end());
 
         return off_limits_border;
     }
 
-    nav_msgs::Path IntrusionJudge::calc_off_limits_border_turn()
+    nav_msgs::Path IntrusionJudge::calc_off_limits_border_circle(float radius)
     {
         nav_msgs::Path off_limits_border;
         off_limits_border.header.frame_id = param_.base_frame;
         off_limits_border.header.stamp = ros::Time::now();
         
         std::vector<geometry_msgs::PoseStamped> arc;
-        arc = calc_arc(-M_PI, M_PI, param_.off_limits_radius_turn);
+        arc = calc_arc(-M_PI, M_PI, radius);
         off_limits_border.poses.insert(off_limits_border.poses.end(), arc.begin(), arc.end());
 
         return off_limits_border;
@@ -112,13 +132,13 @@ namespace intrusion_judge
         switch(motion_state_)
         {
             case MotionState::Stop:
-                off_limits_border = generate_empty_border();
+                off_limits_border = calc_off_limits_border_circle(param_.off_limits_radius_default);
                 break;
             case MotionState::Trans:
                 off_limits_border = calc_off_limits_border_trans();
                 break;
             case MotionState::Turn:
-                off_limits_border = calc_off_limits_border_turn();
+                off_limits_border = calc_off_limits_border_circle(param_.off_limits_radius_turn);
                 break;
         }
 
@@ -158,7 +178,8 @@ namespace intrusion_judge
         switch(motion_state_)
         {
             case MotionState::Stop:
-                return false;
+                if(dist_origin_to_pose < param_.off_limits_radius_default) return true;
+                else return false;
                 break;
 
             case MotionState::Trans:
@@ -167,7 +188,7 @@ namespace intrusion_judge
                             adjust_yaw(trans_direction_ - param_.off_limits_angle_trans/2),
                             adjust_yaw(trans_direction_ + param_.off_limits_angle_trans/2),
                             atan2(pose.position.y, pose.position.x));
-                    if(dist_origin_to_pose < param_.off_limits_radius_trans && angle_intrusion_flag) return true;
+                    if((dist_origin_to_pose < param_.off_limits_radius_trans && angle_intrusion_flag) || dist_origin_to_pose < param_.off_limits_radius_default) return true;
                     else return false;
                 } // blockないとcompile error
                 break;
@@ -200,6 +221,7 @@ namespace intrusion_judge
         if(abs(cmd_vel.angular.z) > param_.moving_th_turn)
             return MotionState::Turn;
 
+        if(previous_motion_state_ != MotionState::Stop && intrusion_flag_) return previous_motion_state_;
         return MotionState::Stop;
     }
 
@@ -239,6 +261,8 @@ namespace intrusion_judge
 
                 visualize_off_limits_border();
                 publish_intrusion_flag();
+
+                previous_motion_state_ = motion_state_;
             }
 
             ros::spinOnce();

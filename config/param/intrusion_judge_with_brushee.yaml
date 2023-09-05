@@ -1,5 +1,6 @@
 hz: 10
 
+off_limits_radius_default: 0.35
 off_limits_radius_trans: 1.0
 off_limits_radius_turn: 0.6
 off_limits_angle_trans: 1.57
