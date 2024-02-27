@@ -41,6 +41,7 @@ namespace intrusion_judge
         {
             ROS_WARN("%s", ex.what());
             person_poses_.reset();
+            // person_poses_.value().poses.clear();
         }
     }
 
@@ -244,13 +245,18 @@ namespace intrusion_judge
 
         while (ros::ok())
         {
-            if(person_poses_.has_value() && cmd_vel_.has_value())
+            // if(person_poses_.has_value() && cmd_vel_.has_value())
+            if(cmd_vel_.has_value())
             {
                 motion_state_ = judge_motion_state(cmd_vel_.value());
                 if(motion_state_ == MotionState::Trans) trans_direction_ = calc_trans_direction(cmd_vel_.value()); 
                 else trans_direction_ = 0;
 
-                intrusion_flag_ = intrusion_judge_pose_array(person_poses_.value());
+                if(person_poses_.has_value()) 
+                    intrusion_flag_ = intrusion_judge_pose_array(person_poses_.value());
+                else 
+                    intrusion_flag_ = false;
+
                 if(intrusion_flag_) latest_intrusion_time_ = ros::Time::now();
                 if(latest_intrusion_time_.has_value())
                 {
